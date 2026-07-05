@@ -202,6 +202,15 @@
   section.ahorro h2{ font-family:'Fraunces', serif; font-size:19px; margin:0 8px 0 0; color:var(--blue-deep); }
   .ahorro-field{ display:flex; flex-direction:column; gap:4px; }
   .ahorro-field label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
+  .amount-input-wrap{ display:flex; align-items:baseline; gap:5px; }
+  .amount-prefix{
+    font-family:'IBM Plex Mono', monospace; font-size:26px; font-weight:600; color:var(--blue-deep);
+  }
+  .amount-input-wrap.small{ gap:4px; }
+  .amount-prefix.small{
+    font-size:16px; font-weight:600; color:var(--ink-soft);
+  }
+ 
   .ahorro-field input{
     font-family:'IBM Plex Mono', monospace; font-size:16px; padding:7px 10px;
     border:1px solid var(--line); border-radius:7px; width:160px;
@@ -302,7 +311,10 @@
   <div class="summary">
     <div class="card">
       <div class="label">Ingreso total</div>
-      <input type="number" id="ingresoInput" class="value" style="border:none;background:transparent;padding:0;width:100%;outline:none;" placeholder="0">
+      <div class="amount-input-wrap">
+        <span class="amount-prefix">$</span>
+        <input type="text" inputmode="numeric" id="ingresoInput" class="value" style="border:none;background:transparent;padding:0;width:100%;outline:none;" placeholder="0">
+      </div>
     </div>
     <div class="card gastos">
       <div class="label">Gastos</div>
@@ -410,7 +422,10 @@
     <h2>Ahorro</h2>
     <div class="ahorro-field">
       <label>USD</label>
-      <input type="number" id="ahorroUsd" placeholder="0">
+      <div class="amount-input-wrap small">
+        <span class="amount-prefix small">USD</span>
+        <input type="text" inputmode="numeric" id="ahorroUsd" placeholder="0">
+      </div>
       <div class="ahorro-add-row">
         <input type="number" id="ahorroUsdAdd" placeholder="+ sumar">
         <button class="ghost small" id="btnAhorroUsdAdd">Sumar</button>
@@ -418,7 +433,10 @@
     </div>
     <div class="ahorro-field">
       <label>Pesos</label>
-      <input type="number" id="ahorroPesos" placeholder="0">
+      <div class="amount-input-wrap small">
+        <span class="amount-prefix small">$</span>
+        <input type="text" inputmode="numeric" id="ahorroPesos" placeholder="0">
+      </div>
       <div class="ahorro-add-row">
         <input type="number" id="ahorroPesosAdd" placeholder="+ sumar">
         <button class="ghost small" id="btnAhorroPesosAdd">Sumar</button>
@@ -537,6 +555,15 @@ function ensureMonth(key){
 function fmtMoney(n){
   n = Number(n) || 0;
   return '$' + n.toLocaleString('es-AR', {maximumFractionDigits:2});
+}
+ 
+function formatMiles(rawDigits){
+  if(!rawDigits) return '';
+  return Number(rawDigits).toLocaleString('es-AR');
+}
+ 
+function soloDigitos(str){
+  return String(str || '').replace(/\D/g,'');
 }
  
 function showToast(msg){
@@ -713,7 +740,7 @@ function categoryPorPagar(cat){
 function renderAll(){
   const month = data[currentMonth];
   document.getElementById('mesLegible').textContent = monthLabel(currentMonth);
-  document.getElementById('ingresoInput').value = month.ingreso || '';
+  document.getElementById('ingresoInput').value = month.ingreso ? formatMiles(month.ingreso) : '';
  
   renderCategory('fijos','tbodyFijos');
   renderCategory('variables','tbodyVariables');
@@ -753,8 +780,8 @@ function renderAll(){
   document.getElementById('pagadoExtra').textContent = 'Pagado: ' + fmtMoney(pagadoExtra);
   document.getElementById('porPagarExtra').textContent = 'Por pagar: ' + fmtMoney(porPagarExtra);
  
-  document.getElementById('ahorroUsd').value = month.ahorro.usd || '';
-  document.getElementById('ahorroPesos').value = month.ahorro.pesos || '';
+  document.getElementById('ahorroUsd').value = month.ahorro.usd ? formatMiles(month.ahorro.usd) : '';
+  document.getElementById('ahorroPesos').value = month.ahorro.pesos ? formatMiles(month.ahorro.pesos) : '';
  
   renderCharts();
 }
@@ -1006,20 +1033,27 @@ document.addEventListener('click', (e)=>{
 });
  
 document.getElementById('ingresoInput').addEventListener('input', (e)=>{
-  data[currentMonth].ingreso = Number(e.target.value) || 0;
+  const digits = soloDigitos(e.target.value);
+  const num = Number(digits) || 0;
+  data[currentMonth].ingreso = num;
+  e.target.value = formatMiles(digits);
   saveData(data);
   const totalPagado = categoryPagado('fijos') + categoryPagado('variables') + categoryPagado('extra');
-  const saldo = (Number(data[currentMonth].ingreso)||0) - totalPagado;
+  const saldo = num - totalPagado;
   document.getElementById('saldoTotal').textContent = fmtMoney(saldo);
   renderCharts();
 });
  
 document.getElementById('ahorroUsd').addEventListener('input', (e)=>{
-  data[currentMonth].ahorro.usd = Number(e.target.value) || 0;
+  const digits = soloDigitos(e.target.value);
+  data[currentMonth].ahorro.usd = Number(digits) || 0;
+  e.target.value = formatMiles(digits);
   saveData(data);
 });
 document.getElementById('ahorroPesos').addEventListener('input', (e)=>{
-  data[currentMonth].ahorro.pesos = Number(e.target.value) || 0;
+  const digits = soloDigitos(e.target.value);
+  data[currentMonth].ahorro.pesos = Number(digits) || 0;
+  e.target.value = formatMiles(digits);
   saveData(data);
 });
  
@@ -1161,3 +1195,4 @@ if(syncCode){ connectSync(syncCode); }
 </script>
 </body>
 </html>
+ 
