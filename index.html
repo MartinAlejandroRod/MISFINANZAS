@@ -114,20 +114,38 @@
   .popover .hint{ font-size:12px; color:var(--ink-soft); margin-bottom:10px; line-height:1.4; }
  
   .summary{
-    display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:28px;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px;
   }
   .summary .card{
     background:var(--paper); border-radius:12px; padding:20px 22px; border:1px solid var(--line);
     box-shadow:0 1px 2px rgba(22,35,63,.04);
   }
+  .label-row{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
   .summary .card .label{
-    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); margin-bottom:8px;
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft);
   }
+  .info-icon{
+    width:15px; height:15px; border-radius:50%; background:var(--line); color:var(--ink-soft);
+    font-size:10px; font-weight:700; font-style:italic; font-family:'Fraunces', serif;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; position:relative; flex-shrink:0; user-select:none;
+  }
+  .info-icon::after{
+    content: attr(data-tooltip);
+    position:absolute; bottom:135%; left:50%; transform:translateX(-50%);
+    background:var(--blue-deep); color:#fff; font-size:11.5px; font-family:'Inter',sans-serif;
+    font-weight:400; text-transform:none; letter-spacing:normal;
+    padding:9px 11px; border-radius:8px; width:200px; text-align:left; line-height:1.4;
+    opacity:0; pointer-events:none; transition:opacity .15s; z-index:30;
+    box-shadow:0 6px 16px rgba(22,35,63,.18);
+  }
+  .info-icon:hover::after, .info-icon.show::after{ opacity:1; }
   .summary .card .value{
     font-family:'IBM Plex Mono', monospace; font-size:26px; font-weight:600; color:var(--blue-deep);
   }
   .summary .card.saldo .value{ color:var(--blue); }
   .summary .card.gastos .value{ color:var(--coral); }
+  .summary .card.disponible .value{ color:var(--indigo); }
  
   .status-strip{
     display:flex; gap:10px; margin-bottom:36px; font-size:13px;
@@ -256,6 +274,9 @@
   }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
  
+  @media (max-width:900px){
+    .summary{ grid-template-columns:repeat(2,1fr); }
+  }
   @media (max-width:640px){
     .summary{ grid-template-columns:1fr; }
     section.ahorro{ flex-direction:column; align-items:flex-start; }
@@ -310,19 +331,35 @@
  
   <div class="summary">
     <div class="card">
-      <div class="label">Ingreso total</div>
+      <div class="label-row">
+        <span class="label">Ingreso total</span>
+        <span class="info-icon" data-tooltip="Monto con el que contás al iniciar el mes.">i</span>
+      </div>
       <div class="amount-input-wrap">
         <span class="amount-prefix">$</span>
         <input type="text" inputmode="numeric" id="ingresoInput" class="value" style="border:none;background:transparent;padding:0;width:100%;outline:none;" placeholder="0">
       </div>
     </div>
     <div class="card gastos">
-      <div class="label">Gastos</div>
+      <div class="label-row">
+        <span class="label">Gastos</span>
+        <span class="info-icon" data-tooltip="Suma de gastos fijos, variables y extras del mes.">i</span>
+      </div>
       <div class="value" id="gastosTotal">$0</div>
     </div>
     <div class="card saldo">
-      <div class="label">Saldo</div>
+      <div class="label-row">
+        <span class="label">Saldo</span>
+        <span class="info-icon" data-tooltip="Cómo queda el ingreso una vez restados los gastos que ya marcaste como Pagado.">i</span>
+      </div>
       <div class="value" id="saldoTotal">$0</div>
+    </div>
+    <div class="card disponible">
+      <div class="label-row">
+        <span class="label">Saldo disponible</span>
+        <span class="info-icon" data-tooltip="Plata sin comprometer todavía, considerando también los gastos que aún no pagaste.">i</span>
+      </div>
+      <div class="value" id="saldoDisponibleTotal">$0</div>
     </div>
   </div>
  
@@ -763,12 +800,15 @@ function renderAll(){
  
   // El saldo solo descuenta lo que ya está marcado como Pagado.
   const saldo = (Number(month.ingreso)||0) - totalPagado;
+  // El saldo disponible descuenta TODO lo comprometido, esté pagado o no.
+  const saldoDisponible = (Number(month.ingreso)||0) - totalGastos;
  
   document.getElementById('totalFijos').textContent = fmtMoney(totalFijos);
   document.getElementById('totalVariables').textContent = fmtMoney(totalVariables);
   document.getElementById('totalExtra').textContent = fmtMoney(totalExtra);
   document.getElementById('gastosTotal').textContent = fmtMoney(totalGastos);
   document.getElementById('saldoTotal').textContent = fmtMoney(saldo);
+  document.getElementById('saldoDisponibleTotal').textContent = fmtMoney(saldoDisponible);
  
   document.getElementById('pagadoTotal').textContent = 'Pagado: ' + fmtMoney(totalPagado);
   document.getElementById('porPagarTotal').textContent = 'Por pagar: ' + fmtMoney(totalPorPagar);
@@ -1039,8 +1079,9 @@ document.getElementById('ingresoInput').addEventListener('input', (e)=>{
   e.target.value = formatMiles(digits);
   saveData(data);
   const totalPagado = categoryPagado('fijos') + categoryPagado('variables') + categoryPagado('extra');
-  const saldo = num - totalPagado;
-  document.getElementById('saldoTotal').textContent = fmtMoney(saldo);
+  const totalGastos = categoryTotal('fijos') + categoryTotal('variables') + categoryTotal('extra');
+  document.getElementById('saldoTotal').textContent = fmtMoney(num - totalPagado);
+  document.getElementById('saldoDisponibleTotal').textContent = fmtMoney(num - totalGastos);
   renderCharts();
 });
  
@@ -1187,6 +1228,17 @@ document.addEventListener('keydown', (e)=>{
   }
 });
  
+document.addEventListener('click', (e)=>{
+  if(e.target.classList.contains('info-icon')){
+    e.stopPropagation();
+    const wasShown = e.target.classList.contains('show');
+    document.querySelectorAll('.info-icon.show').forEach(el => el.classList.remove('show'));
+    if(!wasShown) e.target.classList.add('show');
+    return;
+  }
+  document.querySelectorAll('.info-icon.show').forEach(el => el.classList.remove('show'));
+});
+ 
 /* ---- Init ---- */
 refreshMonthSelector();
 renderAll();
@@ -1195,4 +1247,3 @@ if(syncCode){ connectSync(syncCode); }
 </script>
 </body>
 </html>
- 
