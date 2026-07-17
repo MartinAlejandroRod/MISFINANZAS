@@ -210,6 +210,8 @@
   .add-row input.monto{ width:130px; font-family:'IBM Plex Mono', monospace; }
   .add-row input.cuotas-total{ width:150px; }
   .add-row input.cuota-actual{ width:150px; }
+  .add-row input.fecha{ width:150px; color:var(--ink-soft); }
+  td.fecha-col{ font-size:12px; color:var(--ink-soft); white-space:nowrap; }
 
   .empty-row{ padding:14px; font-size:13px; color:var(--ink-soft); font-style:italic; }
 
@@ -398,12 +400,13 @@
       <span class="badge porpagar" id="porPagarFijos">Por pagar: $0</span>
     </div>
     <table class="items">
-      <thead><tr><th>Concepto</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+      <thead><tr><th>Concepto</th><th>Fecha</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead>
       <tbody id="tbodyFijos"></tbody>
     </table>
     <div class="add-row">
       <input class="nombre" placeholder="Concepto (ej. Alquiler, Spotify)" data-cat="fijos">
       <input class="monto" type="number" placeholder="Monto" data-cat="fijos">
+      <input class="fecha" type="date" data-cat="fijos">
       <button class="small addBtn" data-cat="fijos">Agregar</button>
     </div>
   </section>
@@ -419,12 +422,13 @@
       <span class="badge porpagar" id="porPagarVariables">Por pagar: $0</span>
     </div>
     <table class="items">
-      <thead><tr><th>Concepto</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+      <thead><tr><th>Concepto</th><th>Fecha</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead>
       <tbody id="tbodyVariables"></tbody>
     </table>
     <div class="add-row">
       <input class="nombre" placeholder="Concepto (ej. Cuota compra, Regalo)" data-cat="variables">
       <input class="monto" type="number" placeholder="Monto" data-cat="variables">
+      <input class="fecha" type="date" data-cat="variables">
       <input class="cuota-actual" type="number" min="1" placeholder="Cuota actual (ej. 6)" data-cat="variables">
       <input class="cuotas-total" type="number" min="1" placeholder="Nº total de cuotas" data-cat="variables">
       <button class="small addBtn" data-cat="variables">Agregar</button>
@@ -442,12 +446,13 @@
       <span class="badge porpagar" id="porPagarExtra">Por pagar: $0</span>
     </div>
     <table class="items">
-      <thead><tr><th>Concepto</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+      <thead><tr><th>Concepto</th><th>Fecha</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead>
       <tbody id="tbodyExtra"></tbody>
     </table>
     <div class="add-row">
       <input class="nombre" placeholder="Concepto (ej. Salida imprevista)" data-cat="extra">
       <input class="monto" type="number" placeholder="Monto" data-cat="extra">
+      <input class="fecha" type="date" data-cat="extra">
       <button class="small addBtn" data-cat="extra">Agregar</button>
     </div>
   </section>
@@ -600,6 +605,14 @@ function soloDigitos(str){
   return String(str || '').replace(/\D/g,'');
 }
 
+function fmtFechaCorta(iso){
+  if(!iso) return '';
+  const partes = iso.split('-');
+  if(partes.length !== 3) return '';
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${parseInt(partes[2],10)} ${meses[parseInt(partes[1],10)-1]}`;
+}
+
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -713,11 +726,20 @@ function renderCategory(cat, tbodyId){
   const items = data[currentMonth][cat];
   if(items.length === 0){
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="4" class="empty-row">Sin conceptos cargados todavía.</td>`;
+    tr.innerHTML = `<td colspan="5" class="empty-row">Sin conceptos cargados todavía.</td>`;
     tbody.appendChild(tr);
     return;
   }
-  items.forEach((item, idx)=>{
+  // Ordenamos por fecha (los que no tienen fecha quedan al final), sin perder el índice original.
+  const orden = items.map((item, idx) => ({ item, idx }));
+  orden.sort((a, b) => {
+    const fa = a.item.fecha || '9999-99-99';
+    const fb = b.item.fecha || '9999-99-99';
+    if(fa === fb) return a.idx - b.idx;
+    return fa.localeCompare(fb);
+  });
+
+  orden.forEach(({ item, idx })=>{
     const tr = document.createElement('tr');
     const isEditing = editingItem && editingItem.cat === cat && editingItem.idx === idx;
     const pill = item.pagado
@@ -733,6 +755,7 @@ function renderCategory(cat, tbodyId){
         : '';
       tr.innerHTML = `
         <td><input class="edit-nombre" data-cat="${cat}" data-idx="${idx}" value="${escapeHtml(item.nombre)}">${cuotaFields}</td>
+        <td><input class="edit-fecha" data-cat="${cat}" data-idx="${idx}" type="date" value="${item.fecha || ''}" style="font-size:12px;padding:5px 7px;"></td>
         <td>${pill}</td>
         <td class="monto"><input class="edit-monto" data-cat="${cat}" data-idx="${idx}" type="number" value="${item.monto}"></td>
         <td class="accion">
@@ -749,6 +772,7 @@ function renderCategory(cat, tbodyId){
       }
       tr.innerHTML = `
         <td>${escapeHtml(item.nombre)}${cuotaTag}</td>
+        <td class="fecha-col">${item.fecha ? fmtFechaCorta(item.fecha) : '—'}</td>
         <td>${pill}</td>
         <td class="monto">${fmtMoney(item.monto)}</td>
         <td class="accion">
@@ -1121,10 +1145,12 @@ document.querySelectorAll('.addBtn').forEach(btn=>{
     const section = btn.closest('section');
     const nombreInput = section.querySelector('input.nombre');
     const montoInput = section.querySelector('input.monto');
+    const fechaInput = section.querySelector('input.fecha');
     const nombre = nombreInput.value.trim();
     const monto = Number(montoInput.value) || 0;
     if(!nombre){ nombreInput.focus(); return; }
     const nuevoItem = { nombre, monto, pagado:false };
+    if(fechaInput && fechaInput.value) nuevoItem.fecha = fechaInput.value;
     if(cat === 'variables'){
       const cuotaActualInput = section.querySelector('input.cuota-actual');
       const cuotasTotalInput = section.querySelector('input.cuotas-total');
@@ -1138,6 +1164,7 @@ document.querySelectorAll('.addBtn').forEach(btn=>{
     data[currentMonth][cat].push(nuevoItem);
     nombreInput.value = '';
     montoInput.value = '';
+    if(fechaInput) fechaInput.value = '';
     persistAndRender();
     nombreInput.focus();
   });
@@ -1189,11 +1216,16 @@ document.addEventListener('click', (e)=>{
     const idx = Number(e.target.dataset.idx);
     const nombreInput = document.querySelector(`.edit-nombre[data-cat="${cat}"][data-idx="${idx}"]`);
     const montoInput = document.querySelector(`.edit-monto[data-cat="${cat}"][data-idx="${idx}"]`);
+    const fechaInput = document.querySelector(`.edit-fecha[data-cat="${cat}"][data-idx="${idx}"]`);
     const nuevoNombre = nombreInput.value.trim();
     const nuevoMonto = Number(montoInput.value) || 0;
     if(nuevoNombre){
       data[currentMonth][cat][idx].nombre = nuevoNombre;
       data[currentMonth][cat][idx].monto = nuevoMonto;
+    }
+    if(fechaInput){
+      if(fechaInput.value) data[currentMonth][cat][idx].fecha = fechaInput.value;
+      else delete data[currentMonth][cat][idx].fecha;
     }
     if(cat === 'variables'){
       const cuotaActualInput = document.querySelector(`.edit-cuotaactual[data-cat="${cat}"][data-idx="${idx}"]`);
